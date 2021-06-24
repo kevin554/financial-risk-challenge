@@ -6,8 +6,14 @@ import { useHistory } from "react-router-dom";
 
 export default function Calculator() {
     const history = useHistory();
-    const selectedRiskNumber = history.location.state.risk;
     const [riskData, setRiskData] = useState({});
+
+    if (!history.location.state) {
+        history.replace(`/`);
+        return <></>
+    }
+    
+    const selectedRiskNumber = history.location.state.risk;
 
     function canProcessData() {
         for (let obj of HEADER) {
