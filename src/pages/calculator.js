@@ -17,7 +17,7 @@ export default function Calculator() {
 
     function canProcessData() {
         for (let obj of HEADER) {
-            if (riskData[obj.key] == undefined || riskData[obj.key] == null) {
+            if (riskData[obj.key] == undefined || riskData[obj.key] == null || isNaN(riskData[obj.key]) ) {
                 return false;
             }
         }
@@ -40,11 +40,12 @@ export default function Calculator() {
         const total = riskData["bond"] + riskData["large"] + riskData["mid"] + riskData["foreign"] + riskData["small"];
         let money = riskData[key];
 
-        if (money == 0) {
-            return 0;
+        let shoudBe = riskTaken[key]; // in percentage, ie: the amount the user entered SHOULD BE 70% of the total
+
+        if (money == 0) { // QUICK VALIDATION
+            return shoudBe * total / 100;;
         }
 
-        let shoudBe = riskTaken[key]; // in percentage, ie: the amount the user entered SHOULD BE 70% of the total
         let is = money * 100 / total; // what really is (in percentage). Here, rule of three is applied to know that percentage
         let relocation = shoudBe * money / is; // if exceeds, the money needs to be recalculated to be the percentage its needs to be
         let difference = relocation - money;
@@ -71,12 +72,60 @@ export default function Calculator() {
     let selectedRiskAsList = riskFormulas.filter((obj, i) => { 
         return i == selectedRiskNumber - 1; 
     });
+
+    function getRecommendation() {
+        let hashMap = {};
+        let results = [];
+        let headersMap = {};
+
+        HEADER.forEach(function(obj, i) {
+            let difference = calculateFormula(obj["key"]);
+
+            hashMap[obj["key"]] = difference;
+            headersMap[obj["key"]] = obj["value"].replace("%", "").trim();
+        });
+
+        // LOOP THROUGH THE NEGATIVES ONES, IN "FAVOR" FOR OTHER CAPS
+        for (let iKey in hashMap) {
+            let iDiff = hashMap[iKey];
+
+            while (iDiff < 0) {
+                // LOOP THROUGH THE POSITIVES ONE, WE SHOULD ADD IN THIS CAPS
+                for (let jKey in hashMap) {
+                    let jDiff = hashMap[jKey];
+                    
+                    if (jDiff <= 0) {
+                        continue;
+                    }
+
+                    let tempResult = iDiff + jDiff;
+                    if (tempResult <= 0) {
+                        results.push(`Transfer ${jDiff} from ${headersMap[iKey]} to ${headersMap[jKey]}`);
+                        iDiff += jDiff; // -32.5
+                        hashMap[jKey] = 0;
+                    } else {
+                        hashMap[jKey] = hashMap[jKey] + iDiff;
+                        results.push(`Transfer ${Math.abs(iDiff)} from ${headersMap[iKey]} to ${headersMap[jKey]}`);
+                        iDiff = 0;
+                    }
+                }
+            }
+        }
+
+        return <>
+            {
+                results.map(function(each, i) {
+                    return <p key={i}>- {each}.</p>
+                })
+            }
+        </>;
+    }
     
     return <>
-        <div className="container bg-white">
+        <div className="container">
             <h3 className="mt-5">Risk level {selectedRiskNumber}</h3>
             <div className="row justify-content-center">
-                <div className="col-6">
+                <div className="col-lg-8">
                     <RiskTable risks={selectedRiskAsList} selectedRisk={selectedRiskNumber} />
                 </div>
             </div>
@@ -96,7 +145,6 @@ export default function Calculator() {
                 <tbody>
                     {HEADER.map(function(obj, i) {
                         let result = calculateFormula(obj.key);
-                        console.log(result + " for " + obj.key);
 
                         return <tr key={obj.key}>
                             <td className="input-group">
@@ -115,17 +163,7 @@ export default function Calculator() {
                             <td>{ result && riskData[obj.key] + result }</td>
                             { i == 0 && 
                                 <td rowSpan="5">
-                                    {HEADER.map(function(obj, i) {
-                                        let difference = calculateFormula(obj["key"]);
-
-                                        if (difference > 0) {
-                                            return <p key={obj["key"]}>
-                                                - Transfer ${difference} from Bonds to {obj["value"]} cap.
-                                            </p>
-                                        }
-
-                                        return <></>
-                                    })}
+                                    {getRecommendation()}
                                 </td>
                             }
                         </tr>
